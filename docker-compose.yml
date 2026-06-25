@@ -184,7 +184,7 @@ services:
     hostname: spark-master
     # Official-image foreground command to run the standalone Master.
     command:
-      - "/opt/spark/bin/spark-class"
+      - "spark-class"
       - "org.apache.spark.deploy.master.Master"
       - "--host"
       - "spark-master"
@@ -214,7 +214,7 @@ services:
       - spark-master
     # Official-image foreground command to run a standalone Worker.
     command:
-      - "/opt/spark/bin/spark-class"
+      - "spark-class"
       - "org.apache.spark.deploy.worker.Worker"
       - "--webui-port"
       - "8081"
@@ -249,7 +249,7 @@ services:
     # needed for a single-node demo). Point --master at spark://spark-master:7077
     # instead to run on the standalone cluster (master + worker services).
     command: >
-      /opt/spark/bin/spark-submit
+      spark-submit
       --master local[*]
       --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.3,com.google.cloud.spark:spark-bigquery-with-dependencies_2.12:0.41.0
       --conf spark.sql.streaming.checkpointLocation=/app/checkpoints

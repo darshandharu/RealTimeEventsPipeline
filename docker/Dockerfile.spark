@@ -1,35 +1,40 @@
 # =============================================================================
 # Spark image - serves as master, worker and the streaming-job submitter.
 # -----------------------------------------------------------------------------
-# Built on the official Apache Spark 3.5.3 image (Spark 3.5.x + Hadoop 3 +
-# bundled PySpark), matching the pinned pyspark==3.5.3. The Kafka + BigQuery
-# connector JARs are pulled at submit time via --packages (see docker-compose),
-# and Ivy caches them into the named volume on first run.
+# Built on python:3.12-slim (matching the codebase + pinned deps exactly) with
+# a headless JRE and the `pyspark` pip package, which bundles a full Spark 3.5.3
+# distribution. This guarantees Python-version parity with the rest of the
+# project (the official apache/spark image ships Python 3.8, which our modern
+# dependency pins do not support).
+#
+# `spark-submit` / `spark-class` come from the pyspark package and are placed on
+# PATH via SPARK_HOME. The Kafka + BigQuery connector JARs are resolved at submit
+# time via --packages (see docker-compose) and cached by Ivy into a volume.
 # =============================================================================
-FROM apache/spark:3.5.3
+# Pin the bookworm (Debian 12) variant: Spark 3.5 supports Java 8/11/17, and
+# bookworm still ships openjdk-17 (Debian 13/trixie dropped it for openjdk-21).
+FROM python:3.12-slim-bookworm
 
-# The official image runs as user `spark` (uid 185). Switch to root to install
-# the extra Python driver deps + app code, then drop back.
-USER root
+# --- OS deps: headless JRE for the Spark JVM + build bits for confluent-kafka --
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        procps curl gcc librdkafka-dev openjdk-17-jre-headless \
+    && rm -rf /var/lib/apt/lists/*
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
-    PYTHONPATH=/app \
-    SPARK_HOME=/opt/spark
+    PYTHONPATH=/app
 
 WORKDIR /app
 
-# --- Python deps for the driver (BigQuery client, config, validation, etc.) ---
-# pip is provided via the image's python3; ensure it is available then install.
+# --- Python deps (incl. pyspark, which provides the Spark distribution) -------
 COPY requirements.txt /app/requirements.txt
-RUN set -eux; \
-    if ! command -v pip3 >/dev/null 2>&1; then \
-        apt-get update && apt-get install -y --no-install-recommends python3-pip \
-        && rm -rf /var/lib/apt/lists/*; \
-    fi; \
-    pip3 install --no-cache-dir --upgrade pip; \
-    pip3 install --no-cache-dir -r /app/requirements.txt
+RUN pip install --upgrade pip && pip install -r /app/requirements.txt
+
+# Put Spark's bin (spark-submit, spark-class) on PATH via the pyspark install.
+ENV SPARK_HOME=/usr/local/lib/python3.12/site-packages/pyspark
+ENV PATH="${SPARK_HOME}/bin:${PATH}"
 
 # --- Application code ---------------------------------------------------------
 COPY config/ /app/config/
@@ -41,12 +46,11 @@ COPY spark/ /app/spark/
 COPY monitoring/ /app/monitoring/
 COPY config.yaml /app/config.yaml
 
-# Create runtime dirs and hand ownership to the spark user (uid 185).
-RUN mkdir -p /app/logs /app/checkpoints \
-    && chown -R 185:185 /app
+# --- Non-root user ------------------------------------------------------------
+RUN useradd --create-home --uid 1000 sparkuser \
+    && mkdir -p /app/logs /app/checkpoints \
+    && chown -R sparkuser:sparkuser /app
+USER sparkuser
 
-USER 185
-
-# Default to a no-op; docker-compose sets the real `command` for master,
-# worker and the spark-submit streaming job.
-CMD ["/bin/bash", "-c", "echo 'Provide a command (master/worker/spark-submit)'; sleep infinity"]
+# Default no-op; docker-compose sets the real command (master/worker/submit).
+CMD ["/bin/bash", "-c", "echo 'Provide a command (spark-class master/worker or spark-submit)'; sleep infinity"]
