@@ -68,6 +68,15 @@ up: ## Start the core stack (Kafka, Schema Registry, topics)
 up-all: ## Start the entire stack (core + producer + Spark)
 	docker compose up -d --build
 
+.PHONY: demo-offline
+demo-offline: ## Full offline demo (no GCP): Kafka + producer + Spark console sink
+	SINK_TYPE=console docker compose up -d --build \
+		zookeeper kafka schema-registry kafka-init producer \
+		spark-master spark-worker spark-streaming
+	@echo ""
+	@echo "Offline demo running. Watch the streaming output with:"
+	@echo "    docker compose logs -f spark-streaming"
+
 .PHONY: ui
 ui: ## Start the optional Kafka UI (http://localhost:8080)
 	docker compose --profile ui up -d kafka-ui

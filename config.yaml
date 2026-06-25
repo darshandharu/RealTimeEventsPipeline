@@ -158,6 +158,18 @@ bigquery:
   write_disposition: "WRITE_APPEND"  # append mode (requirement #8)
 
 # -----------------------------------------------------------------------------
+# Sink selection - choose where the streaming job writes its output.
+#   bigquery -> Google BigQuery (cloud; needs GCP credentials + bucket)
+#   console  -> print micro-batches to stdout (fully offline demo / debugging)
+#   parquet  -> write local Parquet files under `local_path` (offline, durable)
+# Override without editing this file:  SINK_TYPE=console
+# -----------------------------------------------------------------------------
+sink:
+  type: "${SINK_TYPE:-bigquery}"     # bigquery | console | parquet
+  local_path: "./output"             # base dir for parquet/console-mode output
+  console_rows: 20                   # max rows printed per batch in console mode
+
+# -----------------------------------------------------------------------------
 # Logging (consumed by utils/logger.py)
 # -----------------------------------------------------------------------------
 logging:

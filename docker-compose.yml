@@ -243,6 +243,9 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       SCHEMA_REGISTRY_URL: http://schema-registry:8081
       GOOGLE_APPLICATION_CREDENTIALS: /app/config/gcp-key.json
+      # Output sink: bigquery (default) | console | parquet.
+      # Run offline with no GCP:  SINK_TYPE=console docker compose up spark-streaming
+      SINK_TYPE: "${SINK_TYPE:-bigquery}"
       PYTHONUNBUFFERED: 1
     ports:
       - "4040:4040"     # Spark application UI (per-job)

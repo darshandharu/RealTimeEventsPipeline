@@ -232,6 +232,22 @@ class BigQueryConfig(_Frozen):
     write_disposition: str = "WRITE_APPEND"
 
 
+class SinkConfig(_Frozen):
+    """Selects and configures the streaming output sink."""
+
+    type: str = "bigquery"
+    local_path: str = "./output"
+    console_rows: int = 20
+
+    @field_validator("type")
+    @classmethod
+    def _validate_type(cls, value: str) -> str:
+        allowed = {"bigquery", "console", "parquet"}
+        if value not in allowed:
+            raise ValueError(f"sink.type must be one of {allowed}, got {value!r}")
+        return value
+
+
 class _LogRotation(_Frozen):
     max_bytes: int = 10_485_760
     backup_count: int = 5
@@ -292,6 +308,7 @@ class Config(_Frozen):
     validation: ValidationConfig
     dlq: DLQConfig
     bigquery: BigQueryConfig
+    sink: SinkConfig
     logging: LoggingConfig
     monitoring: MonitoringConfig
 
@@ -315,6 +332,11 @@ class Config(_Frozen):
 def _interpolate_env(raw_text: str) -> str:
     """Replace ``${VAR}`` / ``${VAR:-default}`` placeholders with env values.
 
+    Full-line YAML comments (lines whose first non-whitespace character is
+    ``#``) are skipped, so documentation that *mentions* the placeholder syntax
+    (e.g. ``${ENV_VAR}`` in the file header) is not mistaken for a real value to
+    resolve.
+
     Args:
         raw_text: The raw YAML file contents.
 
@@ -337,7 +359,14 @@ def _interpolate_env(raw_text: str) -> str:
             f"is not set and has no default (use ${{{name}:-default}})."
         )
 
-    return _ENV_PLACEHOLDER.sub(_replace, raw_text)
+    # Process line-by-line so we can leave comment lines untouched.
+    out_lines = []
+    for line in raw_text.splitlines(keepends=True):
+        if line.lstrip().startswith("#"):
+            out_lines.append(line)  # documentation, not a value
+        else:
+            out_lines.append(_ENV_PLACEHOLDER.sub(_replace, line))
+    return "".join(out_lines)
 
 
 def _load_dotenv_if_present() -> None:

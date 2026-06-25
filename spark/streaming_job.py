@@ -34,7 +34,7 @@ from config.config_loader import Config, load_config
 from dlq.dead_letter_queue import build_dlq_record  # noqa: F401  (schema parity ref)
 from monitoring.metrics import StreamingMetricsListener
 from spark.aggregations import aggregate_tumbling_window, deduplicate_events
-from spark.bigquery_sink import BigQueryStreamWriter, BigQueryTableManager
+from spark.local_sink import build_sink
 from spark.transformations import (
     add_derived_columns,
     parse_kafka_events,
@@ -56,8 +56,9 @@ class StreamingPipeline:
     def __init__(self, config: Config) -> None:
         self._config = config
         self._spark = self._build_spark_session()
-        self._bq_manager = BigQueryTableManager(config)
-        self._bq_writer = BigQueryStreamWriter(config)
+        # Select the output sink (bigquery | console | parquet) from config.
+        self._table_manager, self._sink_writer = build_sink(config)
+        _log.info("Output sink: %s", config.sink.type)
         self._queries: List[StreamingQuery] = []
 
     # ------------------------------------------------------------------
@@ -181,7 +182,7 @@ class StreamingPipeline:
     def start(self) -> None:
         """Build the streaming graph and start all queries."""
         # 1. Provision BigQuery dataset/tables up-front (idempotent).
-        self._bq_manager.ensure_all_tables()
+        self._table_manager.ensure_all_tables()
 
         # 2. Source -> parse (explicit schema) -> validate split.
         raw = self._read_kafka_stream()
@@ -197,7 +198,7 @@ class StreamingPipeline:
         self._queries.append(
             self._start_query(
                 raw_events_df,
-                self._bq_writer.raw_events_sink(),
+                self._sink_writer.raw_events_sink(),
                 query_name="raw_events_to_bq",
                 output_mode="append",
             )
@@ -208,7 +209,7 @@ class StreamingPipeline:
         self._queries.append(
             self._start_query(
                 aggregates_df,
-                self._bq_writer.aggregates_sink(),
+                self._sink_writer.aggregates_sink(),
                 query_name="aggregates_to_bq",
                 output_mode="append",
             )
@@ -220,7 +221,7 @@ class StreamingPipeline:
         self._queries.append(
             self._start_query(
                 dlq_df,
-                self._bq_writer.dead_letter_sink(),
+                self._sink_writer.dead_letter_sink(),
                 query_name="dlq_to_bq",
                 output_mode="append",
             )
