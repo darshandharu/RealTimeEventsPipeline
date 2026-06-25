@@ -8,6 +8,9 @@
 !.env.example
 config/gcp-key.json
 config/*-key.json
+config/*.json          # any service-account JSON dropped into config/
+!config/__init__.py    # ...but never ignore the package marker (it's .py anyway)
+*-service-account*.json
 *.pem
 *.p12
 
