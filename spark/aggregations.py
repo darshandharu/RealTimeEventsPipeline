@@ -42,12 +42,12 @@ def aggregate_tumbling_window(events_df: DataFrame, config: Config) -> DataFrame
     streaming_cfg = config.spark.streaming
     window_duration = streaming_cfg.window_duration   # e.g. "1 minute"
     window_slide = streaming_cfg.window_slide         # == duration -> tumbling
-    watermark_delay = streaming_cfg.watermark_delay   # e.g. "2 minutes"
 
+    # NOTE: the watermark is applied once upstream (in `deduplicate_events`).
+    # Calling `.withWatermark` again here would raise "Redefining watermark is
+    # disallowed" in Spark 3.5, so we rely on the already-watermarked stream.
     aggregated = (
         events_df
-        # Watermark on event time -> tolerate late data, bound state.
-        .withWatermark("event_ts", watermark_delay)
         .groupBy(
             F.window(F.col("event_ts"), window_duration, window_slide),
             F.col("symbol"),
@@ -94,14 +94,19 @@ def deduplicate_events(events_df: DataFrame, config: Config) -> DataFrame:
         config: The loaded pipeline configuration.
 
     Returns:
-        The de-duplicated streaming DataFrame. If duplicate detection is
-        disabled in config, the input is returned unchanged.
+        The watermarked streaming DataFrame, de-duplicated on ``event_id`` when
+        duplicate detection is enabled. This function is the *single* place the
+        event-time watermark is applied for the pipeline, so downstream
+        aggregation must NOT re-apply it (Spark 3.5 disallows redefining a
+        watermark within one query).
     """
-    if not config.validation.enable_duplicate_detection:
-        return events_df
-
     watermark_delay = config.spark.streaming.watermark_delay
+    # Apply the watermark unconditionally so the aggregation branch always has
+    # one, even when de-duplication is turned off.
     watermarked = events_df.withWatermark("event_ts", watermark_delay)
+
+    if not config.validation.enable_duplicate_detection:
+        return watermarked
 
     # dropDuplicatesWithinWatermark (Spark 3.5+) avoids unbounded dedup state.
     try:
