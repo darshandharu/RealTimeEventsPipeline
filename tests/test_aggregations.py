@@ -24,7 +24,10 @@ from pyspark.sql.types import (  # noqa: E402
     TimestampType,
 )
 
-from spark.aggregations import aggregate_tumbling_window, deduplicate_events  # noqa: E402
+from spark.aggregations import (  # noqa: E402
+    aggregate_tumbling_window,
+    deduplicate_events,
+)
 
 
 @pytest.fixture(scope="module")
@@ -73,8 +76,7 @@ def test_tumbling_window_aggregates(spark, config):
     """Per-symbol 1-minute aggregates compute correct stats."""
     df = _events_df(spark)
     result = {
-        row["symbol"]: row
-        for row in aggregate_tumbling_window(df, config).collect()
+        row["symbol"]: row for row in aggregate_tumbling_window(df, config).collect()
     }
 
     aapl = result["AAPL"]

@@ -134,7 +134,12 @@ def producer_with_mocks(config, monkeypatch):
     prod._topic = config.kafka.topics.events  # noqa: SLF001
     prod._shutdown_timeout = 1  # noqa: SLF001
     prod._running = False  # noqa: SLF001
-    prod._metrics = {"produced": 0, "delivered": 0, "failed": 0, "dlq": 0}  # noqa: SLF001
+    prod._metrics = {
+        "produced": 0,
+        "delivered": 0,
+        "failed": 0,
+        "dlq": 0,
+    }  # noqa: SLF001
     from validation.validator import EventValidator
 
     prod._validator = EventValidator(config)  # noqa: SLF001
@@ -155,4 +160,6 @@ def test_invalid_event_is_dead_lettered(producer_with_mocks, make_event):
     producer_with_mocks._produce_one(make_event(price=-9.0))  # noqa: SLF001
     assert producer_with_mocks._metrics["dlq"] == 1  # noqa: SLF001
     assert producer_with_mocks._metrics["produced"] == 0  # noqa: SLF001
-    assert "producer_validation_failed" in producer_with_mocks._dlq.sent[0]["reason"]  # noqa: SLF001
+    assert (
+        "producer_validation_failed" in producer_with_mocks._dlq.sent[0]["reason"]
+    )  # noqa: SLF001

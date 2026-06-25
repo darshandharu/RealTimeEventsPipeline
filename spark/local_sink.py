@@ -40,8 +40,9 @@ class NoOpTableManager:
 
     def ensure_all_tables(self) -> None:
         """No-op: offline sinks need no pre-provisioned tables."""
-        _log.info("Sink '%s' selected — skipping BigQuery table provisioning",
-                  self._sink_type)
+        _log.info(
+            "Sink '%s' selected — skipping BigQuery table provisioning", self._sink_type
+        )
 
 
 class ConsoleStreamWriter:

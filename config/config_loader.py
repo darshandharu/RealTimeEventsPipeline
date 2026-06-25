@@ -400,9 +400,7 @@ def load_config(config_path: Optional[str] = None) -> Config:
     _load_dotenv_if_present()
 
     path = Path(
-        config_path
-        or os.environ.get("RTEP_CONFIG_PATH")
-        or DEFAULT_CONFIG_PATH
+        config_path or os.environ.get("RTEP_CONFIG_PATH") or DEFAULT_CONFIG_PATH
     )
     if not path.exists():
         raise FileNotFoundError(f"Configuration file not found: {path}")

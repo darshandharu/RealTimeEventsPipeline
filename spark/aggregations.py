@@ -40,27 +40,23 @@ def aggregate_tumbling_window(events_df: DataFrame, config: Config) -> DataFrame
         per (window, symbol, exchange).
     """
     streaming_cfg = config.spark.streaming
-    window_duration = streaming_cfg.window_duration   # e.g. "1 minute"
-    window_slide = streaming_cfg.window_slide         # == duration -> tumbling
+    window_duration = streaming_cfg.window_duration  # e.g. "1 minute"
+    window_slide = streaming_cfg.window_slide  # == duration -> tumbling
 
     # NOTE: the watermark is applied once upstream (in `deduplicate_events`).
     # Calling `.withWatermark` again here would raise "Redefining watermark is
     # disallowed" in Spark 3.5, so we rely on the already-watermarked stream.
-    aggregated = (
-        events_df
-        .groupBy(
-            F.window(F.col("event_ts"), window_duration, window_slide),
-            F.col("symbol"),
-            F.col("exchange"),
-        )
-        .agg(
-            F.round(F.avg("price"), 4).alias("avg_price"),
-            F.round(F.max("price"), 4).alias("max_price"),
-            F.round(F.min("price"), 4).alias("min_price"),
-            F.sum("volume").cast("long").alias("total_volume"),
-            F.count(F.lit(1)).cast("long").alias("event_count"),
-            F.round(F.avg("change_percent"), 4).alias("avg_change_percent"),
-        )
+    aggregated = events_df.groupBy(
+        F.window(F.col("event_ts"), window_duration, window_slide),
+        F.col("symbol"),
+        F.col("exchange"),
+    ).agg(
+        F.round(F.avg("price"), 4).alias("avg_price"),
+        F.round(F.max("price"), 4).alias("max_price"),
+        F.round(F.min("price"), 4).alias("min_price"),
+        F.sum("volume").cast("long").alias("total_volume"),
+        F.count(F.lit(1)).cast("long").alias("event_count"),
+        F.round(F.avg("change_percent"), 4).alias("avg_change_percent"),
     )
 
     # Flatten the struct `window` column into explicit start/end + derive the
@@ -108,8 +104,9 @@ def deduplicate_events(events_df: DataFrame, config: Config) -> DataFrame:
     if not config.validation.enable_duplicate_detection:
         return watermarked
 
-    # dropDuplicatesWithinWatermark (Spark 3.5+) avoids unbounded dedup state.
-    try:
+    # dropDuplicatesWithinWatermark (Spark 3.5+) bounds dedup state by the
+    # watermark, but is only valid on *streaming* DataFrames. Fall back to plain
+    # dropDuplicates for batch DataFrames (e.g. unit tests) or older Spark.
+    if events_df.isStreaming and hasattr(watermarked, "dropDuplicatesWithinWatermark"):
         return watermarked.dropDuplicatesWithinWatermark(["event_id"])
-    except AttributeError:  # pragma: no cover - older Spark fallback
-        return watermarked.dropDuplicates(["event_id"])
+    return watermarked.dropDuplicates(["event_id"])

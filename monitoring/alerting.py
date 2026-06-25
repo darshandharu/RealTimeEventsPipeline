@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import json
 import time
-from typing import Dict, Optional
+from typing import Dict
 
 from config.config_loader import Config
 from utils.logger import get_logger
@@ -31,8 +31,8 @@ _log = get_logger(__name__, component="pipeline")
 
 # Severity -> (logging method name, Slack attachment colour).
 _SEVERITY_MAP: Dict[str, tuple[str, str]] = {
-    "info": ("info", "#36a64f"),       # green
-    "warning": ("warning", "#ff9900"), # orange
+    "info": ("info", "#36a64f"),  # green
+    "warning": ("warning", "#ff9900"),  # orange
     "critical": ("error", "#d00000"),  # red
 }
 
@@ -81,7 +81,9 @@ class AlertManager:
 
         severity = severity if severity in _SEVERITY_MAP else "warning"
         log_method, _ = _SEVERITY_MAP[severity]
-        getattr(_log, log_method)("ALERT [%s] %s — %s", severity.upper(), title, message)
+        getattr(_log, log_method)(
+            "ALERT [%s] %s — %s", severity.upper(), title, message
+        )
 
         if self._channel == "webhook" and self._webhook_url:
             self._send_webhook(title, message, severity)

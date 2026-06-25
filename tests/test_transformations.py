@@ -13,8 +13,31 @@ import pytest
 pyspark = pytest.importorskip("pyspark")
 
 from pyspark.sql import SparkSession  # noqa: E402
+from pyspark.sql.types import (  # noqa: E402
+    BinaryType,
+    IntegerType,
+    LongType,
+    StringType,
+    StructField,
+    StructType,
+    TimestampType,
+)
 
 from spark.transformations import add_derived_columns, parse_kafka_events  # noqa: E402
+
+# Explicit schema mirroring the Kafka source columns. Declared so an all-NULL
+# `timestamp` column in the test rows does not trip Spark's type inference
+# (CANNOT_DETERMINE_TYPE) — parse_kafka_events only reads it as metadata.
+_KAFKA_RAW_SCHEMA = StructType(
+    [
+        StructField("key", BinaryType()),
+        StructField("value", BinaryType()),
+        StructField("topic", StringType()),
+        StructField("partition", IntegerType()),
+        StructField("offset", LongType()),
+        StructField("timestamp", TimestampType()),
+    ]
+)
 
 
 @pytest.fixture(scope="module")
@@ -49,7 +72,7 @@ def test_parse_kafka_events_applies_explicit_schema(spark):
                 None,
             )
         ],
-        ["key", "value", "topic", "partition", "offset", "timestamp"],
+        _KAFKA_RAW_SCHEMA,
     )
     parsed = parse_kafka_events(raw).collect()[0]
     assert parsed["symbol"] == "AAPL"
@@ -62,7 +85,7 @@ def test_parse_kafka_events_corrupted_json_yields_nulls(spark):
     """Malformed JSON yields null fields (caught downstream as corrupted_json)."""
     raw = spark.createDataFrame(
         [(b"X", b"{not valid json", "events", 0, 1, None)],
-        ["key", "value", "topic", "partition", "offset", "timestamp"],
+        _KAFKA_RAW_SCHEMA,
     )
     parsed = parse_kafka_events(raw).collect()[0]
     assert parsed["event_id"] is None
@@ -85,7 +108,7 @@ def test_add_derived_columns(spark):
                 None,
             )
         ],
-        ["key", "value", "topic", "partition", "offset", "timestamp"],
+        _KAFKA_RAW_SCHEMA,
     )
     enriched = add_derived_columns(parse_kafka_events(raw)).collect()[0]
     assert enriched["event_year"] == 2026
@@ -110,7 +133,7 @@ def test_price_buckets(spark, price, bucket):
     ).encode()
     raw = spark.createDataFrame(
         [(b"AAPL", payload, "events", 0, 1, None)],
-        ["key", "value", "topic", "partition", "offset", "timestamp"],
+        _KAFKA_RAW_SCHEMA,
     )
     enriched = add_derived_columns(parse_kafka_events(raw)).collect()[0]
     assert enriched["price_bucket"] == bucket

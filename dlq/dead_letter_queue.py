@@ -37,7 +37,7 @@ from typing import Any, Dict, Optional
 
 from confluent_kafka import Producer
 
-from config.config_loader import PROJECT_ROOT, Config, load_config
+from config.config_loader import Config, load_config
 from utils.logger import get_logger
 
 _log = get_logger(__name__, component="pipeline")

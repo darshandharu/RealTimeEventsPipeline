@@ -17,8 +17,6 @@ must never destabilise the stream.
 
 from __future__ import annotations
 
-from typing import Optional
-
 from pyspark.sql.streaming import StreamingQueryListener
 
 from config.config_loader import Config
@@ -133,8 +131,11 @@ class StreamingMetricsListener(StreamingQueryListener):
         input_rate = float(progress.inputRowsPerSecond or 0.0)
         process_rate = float(progress.processedRowsPerSecond or 0.0)
         num_rows = int(progress.numInputRows or 0)
-        batch_ms = float(progress.durationMs.get("triggerExecution", 0.0)) \
-            if getattr(progress, "durationMs", None) else 0.0
+        batch_ms = (
+            float(progress.durationMs.get("triggerExecution", 0.0))
+            if getattr(progress, "durationMs", None)
+            else 0.0
+        )
 
         _log.info(
             "[metrics] query=%s rows=%d in/s=%.1f proc/s=%.1f batch=%.0fms",

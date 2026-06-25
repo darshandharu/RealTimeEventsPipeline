@@ -110,9 +110,7 @@ class MarketDataSource(DataSource):
         return events
 
     # -- event construction -------------------------------------------------
-    def _build_event(
-        self, symbol: str, company: str, exchange: str
-    ) -> Dict[str, Any]:
+    def _build_event(self, symbol: str, company: str, exchange: str) -> Dict[str, Any]:
         """Build a single well-formed event for one symbol.
 
         Tries a live quote first (when in yahoo_finance mode); on any failure
@@ -223,7 +221,13 @@ class MarketDataSource(DataSource):
 
         corrupt = dict(event)
         strategy = random.choice(
-            ["negative_price", "missing_field", "bad_timestamp", "wrong_type", "null_symbol"]
+            [
+                "negative_price",
+                "missing_field",
+                "bad_timestamp",
+                "wrong_type",
+                "null_symbol",
+            ]
         )
         if strategy == "negative_price":
             corrupt["price"] = round(-abs(event["price"]), 4)

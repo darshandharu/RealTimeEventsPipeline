@@ -155,7 +155,9 @@ class EventValidator:
         if raw is None:
             return []  # already reported by required/null checks
         if not isinstance(raw, str):
-            return [f"invalid_timestamp: must be ISO-8601 string, got {type(raw).__name__}"]
+            return [
+                f"invalid_timestamp: must be ISO-8601 string, got {type(raw).__name__}"
+            ]
         parsed = _parse_iso(raw)
         if parsed is None:
             return [f"invalid_timestamp: '{raw}' is not valid ISO-8601"]
@@ -172,7 +174,9 @@ class EventValidator:
         """Validate the exchange code against the allow-list."""
         exchange = event.get("exchange")
         if exchange is not None and exchange not in self._allowed_exchanges:
-            return [f"invalid_exchange: '{exchange}' not in {sorted(self._allowed_exchanges)}"]
+            return [
+                f"invalid_exchange: '{exchange}' not in {sorted(self._allowed_exchanges)}"
+            ]
         return []
 
 
@@ -249,18 +253,14 @@ def build_spark_validation_expr(config: Config) -> "Any":
 
     # 1. corrupted JSON: every parsed field is null => parse failed entirely.
     all_null = (
-        F.col("event_id").isNull()
-        & F.col("symbol").isNull()
-        & F.col("price").isNull()
+        F.col("event_id").isNull() & F.col("symbol").isNull() & F.col("price").isNull()
     )
     checks.append((all_null, F.lit("corrupted_json: payload was not parseable")))
 
     # 2. missing/null required fields.
     for field in required:
         col = "event_ts" if field == "timestamp" else field
-        checks.append(
-            (F.col(col).isNull(), F.lit(f"missing_or_null: {field}"))
-        )
+        checks.append((F.col(col).isNull(), F.lit(f"missing_or_null: {field}")))
 
     # 3. negative / out-of-range price.
     checks.append(
@@ -272,7 +272,10 @@ def build_spark_validation_expr(config: Config) -> "Any":
 
     # 4. negative volume.
     checks.append(
-        (F.col("volume") < F.lit(rules.volume_min), F.lit("invalid_volume: volume < min"))
+        (
+            F.col("volume") < F.lit(rules.volume_min),
+            F.lit("invalid_volume: volume < min"),
+        )
     )
 
     # 5. change_percent out of range.

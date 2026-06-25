@@ -91,8 +91,8 @@ class BigQueryTableManager:
     # ------------------------------------------------------------------
     def ensure_dataset(self) -> None:
         """Create the dataset if it does not already exist (idempotent)."""
-        from google.cloud import bigquery
         from google.api_core.exceptions import Conflict
+        from google.cloud import bigquery
 
         dataset_id = f"{self._project}.{self._dataset}"
         dataset = bigquery.Dataset(dataset_id)

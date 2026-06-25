@@ -94,9 +94,7 @@ class DataQualityReporter:
             config.monitoring.data_quality_report.output_dir
         )
         self._output_dir.mkdir(parents=True, exist_ok=True)
-        self._freshness_seconds = (
-            config.validation.rules.max_timestamp_skew_seconds
-        )
+        self._freshness_seconds = config.validation.rules.max_timestamp_skew_seconds
 
     # ------------------------------------------------------------------
     def generate(self, records: Iterable[Dict[str, Any]]) -> DQReport:
@@ -185,9 +183,10 @@ class DataQualityReporter:
             A :class:`DQReport` summarising dead-lettered records, or ``None``
             if the fallback file does not exist.
         """
-        fallback = self._config.resolve_path(
-            self._config.logging.log_dir
-        ) / "dlq_fallback.jsonl"
+        fallback = (
+            self._config.resolve_path(self._config.logging.log_dir)
+            / "dlq_fallback.jsonl"
+        )
         if not fallback.exists():
             _log.info("No DLQ fallback file at %s — skipping DQ-from-DLQ", fallback)
             return None
@@ -217,9 +216,7 @@ class DataQualityReporter:
         json_path = self._output_dir / f"dq_report_{stamp}.json"
         html_path = self._output_dir / f"dq_report_{stamp}.html"
 
-        json_path.write_text(
-            json.dumps(report.to_dict(), indent=2), encoding="utf-8"
-        )
+        json_path.write_text(json.dumps(report.to_dict(), indent=2), encoding="utf-8")
         html_path.write_text(self._render_html(report), encoding="utf-8")
         _log.info("DQ report written: %s | %s", json_path.name, html_path.name)
         return {"json": json_path, "html": html_path}
@@ -244,14 +241,17 @@ class DataQualityReporter:
                 ("Consistency", d.consistency),
             ]
         )
-        errors = "".join(
-            f"<tr><td>{e['reason']}</td><td>{e['count']}</td></tr>"
-            for e in report.top_error_reasons
-        ) or "<tr><td colspan='2'>No errors 🎉</td></tr>"
+        errors = (
+            "".join(
+                f"<tr><td>{e['reason']}</td><td>{e['count']}</td></tr>"
+                for e in report.top_error_reasons
+            )
+            or "<tr><td colspan='2'>No errors 🎉</td></tr>"
+        )
         score_colour = (
-            "#2e7d32" if report.overall_score >= 95
-            else "#f9a825" if report.overall_score >= 80
-            else "#c62828"
+            "#2e7d32"
+            if report.overall_score >= 95
+            else "#f9a825" if report.overall_score >= 80 else "#c62828"
         )
         return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">

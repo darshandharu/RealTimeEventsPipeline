@@ -135,9 +135,7 @@ def get_logger(
         max_bytes = 10_485_760
         backup_count = 5
 
-    resolved_component = (
-        component if component in _COMPONENT_FILES else "pipeline"
-    )
+    resolved_component = component if component in _COMPONENT_FILES else "pipeline"
     log_file = log_dir / _COMPONENT_FILES[resolved_component]
 
     logger.setLevel(configured_level.upper())
@@ -164,8 +162,8 @@ def get_logger(
 
     _CONFIGURED.add(name)
     logger.debug(
-        "Logger initialised", extra={"component": resolved_component,
-                                     "log_file": str(log_file)}
+        "Logger initialised",
+        extra={"component": resolved_component, "log_file": str(log_file)},
     )
     return logger
 

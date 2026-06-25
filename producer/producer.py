@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import json
 import signal
-import sys
 import time
 from types import FrameType
 from typing import Any, Dict, Optional
@@ -136,9 +135,7 @@ class EventProducer:
     # ------------------------------------------------------------------
     # Delivery callback
     # ------------------------------------------------------------------
-    def _delivery_callback(
-        self, err: Optional[KafkaError], msg: Any
-    ) -> None:
+    def _delivery_callback(self, err: Optional[KafkaError], msg: Any) -> None:
         """librdkafka delivery report callback (success or permanent failure).
 
         Invoked from :meth:`poll`/:meth:`flush`. On permanent delivery failure

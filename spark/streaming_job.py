@@ -228,9 +228,7 @@ class StreamingPipeline:
         )
 
         # 6. Attach the metrics listener (bonus: streaming metrics).
-        self._spark.streams.addListener(
-            StreamingMetricsListener(self._config)
-        )
+        self._spark.streams.addListener(StreamingMetricsListener(self._config))
 
         _log.info("All %d streaming queries started", len(self._queries))
         self._await_termination()
@@ -293,7 +291,9 @@ class StreamingPipeline:
             .trigger(processingTime=self._config.spark.streaming.trigger_interval)
             .start()
         )
-        _log.info("Started DLQ->Kafka query (topic=%s)", self._config.kafka.topics.dead_letter)
+        _log.info(
+            "Started DLQ->Kafka query (topic=%s)", self._config.kafka.topics.dead_letter
+        )
         return query
 
     # ------------------------------------------------------------------

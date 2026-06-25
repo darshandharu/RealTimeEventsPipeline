@@ -86,9 +86,7 @@ def parse_kafka_events(kafka_df: DataFrame) -> DataFrame:
 
     # Cast the ISO-8601 string to a real timestamp for watermarking. An
     # unparseable string becomes NULL -> flagged as `invalid_timestamp`.
-    return flattened.withColumn(
-        "event_ts", F.to_timestamp(F.col("timestamp"))
-    )
+    return flattened.withColumn("event_ts", F.to_timestamp(F.col("timestamp")))
 
 
 def _price_bucket_expr() -> "F.Column":
@@ -122,8 +120,7 @@ def add_derived_columns(events_df: DataFrame) -> DataFrame:
         ``price_bucket``.
     """
     return (
-        events_df
-        .withColumn("event_date", F.to_date(F.col("event_ts")))
+        events_df.withColumn("event_date", F.to_date(F.col("event_ts")))
         .withColumn("event_hour", F.hour(F.col("event_ts")))
         .withColumn("event_day", F.dayofmonth(F.col("event_ts")))
         .withColumn("event_month", F.month(F.col("event_ts")))

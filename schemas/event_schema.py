@@ -37,14 +37,7 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
-from pyspark.sql.types import (
-    DoubleType,
-    LongType,
-    StringType,
-    StructField,
-    StructType,
-    TimestampType,
-)
+from pyspark.sql.types import DoubleType, LongType, StringType, StructField, StructType
 
 # ===========================================================================
 # 1. PySpark StructType - used with from_json() in the streaming job.
@@ -103,7 +96,8 @@ EVENT_JSON_SCHEMA: Dict[str, Any] = {
 # 3. Avro schema (Confluent Schema Registry) - bonus: schema registry support.
 #    Kept structurally identical to the JSON contract above.
 # ===========================================================================
-EVENT_AVRO_SCHEMA: str = """
+EVENT_AVRO_SCHEMA: str = (
+    """
 {
   "type": "record",
   "name": "StockMarketEvent",
@@ -122,6 +116,7 @@ EVENT_AVRO_SCHEMA: str = """
   ]
 }
 """.strip()
+)
 
 
 # ===========================================================================
@@ -223,5 +218,5 @@ if __name__ == "__main__":  # pragma: no cover - manual smoke test
     for field in STOCK_EVENT_SCHEMA.fields:
         print(f"  {field.name:<16} {field.dataType.simpleString()}")
     print(f"\nJSON Schema required: {EVENT_JSON_SCHEMA['required']}")
-    print(f"Avro record name    : StockMarketEvent")
+    print("Avro record name    : StockMarketEvent")
     print(f"BQ raw columns      : {len(RAW_EVENT_TABLE_SCHEMA)}")
