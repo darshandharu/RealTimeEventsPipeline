@@ -37,39 +37,94 @@ shutdown, full test coverage, containerization, and an observability stack
 
 ## 🏗️ Architecture
 
-```
- ┌──────────────┐     ┌───────────────┐     ┌──────────────────────────────┐
- │ Yahoo Finance│     │ Kafka Producer│     │   Kafka topic: events        │
- │  (or mock)   │────▶│  (idempotent, │────▶│  (3 partitions)              │
- └──────────────┘     │   retries)    │     └──────────────┬───────────────┘
-                      └───────────────┘                    │
-                                                           ▼
-                          ┌──────────────────────────────────────────────┐
-                          │      PySpark Structured Streaming             │
-                          │  parse (explicit schema, no inference)        │
-                          │            │                                  │
-                          │   ┌────────┴─────────┐                        │
-                          │   ▼                  ▼                        │
-                          │ VALID            INVALID ─▶ DLQ envelope ──┐  │
-                          │   │  dedup + watermark                     │  │
-                          │   │  enrich (hour/day/month/year, buckets) │  │
-                          │   ├─────────────┐                          │  │
-                          │   ▼             ▼                          │  │
-                          │ raw events   1-min tumbling-window agg     │  │
-                          └───┬─────────────┬──────────────────────────┼──┘
-                              ▼             ▼                          ▼
-                    ┌─────────────────────────────┐      ┌──────────────────────┐
-                    │   Google BigQuery            │      │ Kafka: dead-letter-  │
-                    │  events_raw (part/cluster)   │      │ events  + BQ DLQ tbl │
-                    │  events_aggregates_1m        │      └──────────────────────┘
-                    │  dead_letter_events          │
-                    └──────────────┬───────────────┘
-                                   ▼
-                         ┌───────────────────┐
-                         │   Power BI         │
-                         │  KPIs · trends ·   │
-                         │  heatmap · filters │
-                         └───────────────────┘
+```mermaid
+flowchart TB
+    %% ---------------- Data Source ----------------
+    subgraph SRC["📡 Data Source"]
+        direction LR
+        YF["Yahoo Finance API"]
+        MOCK["Mock Generator<br/><i>offline fallback</i>"]
+    end
+
+    %% ---------------- Producer ----------------
+    subgraph PROD["🏭 Kafka Producer — Python 3.12"]
+        direction LR
+        GEN["Event Generator<br/><i>retry · backoff · jitter</i>"]
+        PV{"Producer-side<br/>Validation"}
+    end
+
+    %% ---------------- Kafka ----------------
+    subgraph KAFKA["🟧 Apache Kafka + Schema Registry"]
+        direction LR
+        T1[["events<br/><i>3 partitions</i>"]]
+        T2[["dead-letter-events"]]
+    end
+
+    %% ---------------- Spark ----------------
+    subgraph SPARK["⚡ PySpark Structured Streaming"]
+        direction TB
+        PARSE["Parse<br/><i>explicit schema · no inference</i>"]
+        VAL{"Validation<br/>Split"}
+        DEDUP["Dedup + Watermark<br/><i>event-time</i>"]
+        ENR["Enrich<br/><i>hour/day/month/year · price_bucket</i>"]
+        AGG["1-min Tumbling<br/>Window Aggregates"]
+        DLQB["DLQ Envelope<br/><i>reason · timestamp · pipeline</i>"]
+        PARSE --> VAL
+        VAL -->|valid| DEDUP --> ENR
+        ENR --> AGG
+        VAL -->|invalid| DLQB
+    end
+
+    %% ---------------- Sinks ----------------
+    subgraph BQ["🔵 Google BigQuery — partitioned + clustered"]
+        direction LR
+        BQ1[("events_raw")]
+        BQ2[("events_aggregates_1m")]
+        BQ3[("dead_letter_events")]
+    end
+
+    PBI["📈 Power BI<br/>KPIs · trends · heatmap · filters"]
+
+    %% ---------------- Observability ----------------
+    subgraph OBS["📊 Observability — bonus"]
+        direction LR
+        PROM["Prometheus<br/>Metrics"]
+        ALERT["Alerting<br/>log · webhook"]
+        DQ["Data Quality<br/>Report"]
+    end
+
+    %% ---------------- Edges ----------------
+    YF --> GEN
+    MOCK -.->|on API failure| GEN
+    GEN --> PV
+    PV -->|valid| T1
+    PV -->|invalid| T2
+    T1 --> PARSE
+    ENR --> BQ1
+    AGG --> BQ2
+    DLQB --> T2
+    DLQB --> BQ3
+    BQ1 --> PBI
+    BQ2 --> PBI
+    BQ3 --> PBI
+    SPARK -.->|StreamingQueryListener| OBS
+
+    %% ---------------- Styling ----------------
+    classDef src fill:#e8f0fe,stroke:#4285f4,stroke-width:1px,color:#1a1a1a;
+    classDef prod fill:#fff4e5,stroke:#ff9900,stroke-width:1px,color:#1a1a1a;
+    classDef kafka fill:#fde8e8,stroke:#d32f2f,stroke-width:1px,color:#1a1a1a;
+    classDef spark fill:#fdeede,stroke:#e25a1c,stroke-width:1px,color:#1a1a1a;
+    classDef bq fill:#e6f4ea,stroke:#0f9d58,stroke-width:1px,color:#1a1a1a;
+    classDef obs fill:#f3e8fd,stroke:#9334e6,stroke-width:1px,color:#1a1a1a;
+    classDef pbi fill:#fff8e1,stroke:#f2c811,stroke-width:2px,color:#1a1a1a;
+
+    class YF,MOCK src;
+    class GEN,PV prod;
+    class T1,T2 kafka;
+    class PARSE,VAL,DEDUP,ENR,AGG,DLQB spark;
+    class BQ1,BQ2,BQ3 bq;
+    class PROM,ALERT,DQ obs;
+    class PBI pbi;
 ```
 
 Observability runs alongside: a **StreamingQueryListener** exports metrics to
