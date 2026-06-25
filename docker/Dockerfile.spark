@@ -1,0 +1,46 @@
+# =============================================================================
+# Spark image - serves as master, worker and the streaming-job submitter.
+# -----------------------------------------------------------------------------
+# Built on the Bitnami Spark 3.5 image (Spark 3.5.x + Hadoop 3, Python 3) so it
+# matches the pinned pyspark==3.5.3 and ships the scripts docker-compose calls
+# for master/worker mode. The Kafka + BigQuery connector JARs are pulled at
+# submit time via --packages (see docker-compose `spark-streaming.command`),
+# and Ivy caches them into the named volume on first run.
+# =============================================================================
+FROM bitnami/spark:3.5.3
+
+# Bitnami images run as non-root (uid 1001) by default. Switch to root only to
+# install the Python deps, then drop back.
+USER root
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONPATH=/app
+
+WORKDIR /app
+
+# --- Python deps for the driver (BigQuery client, config, validation, etc.) ---
+COPY requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir -r /app/requirements.txt
+
+# --- Application code ---------------------------------------------------------
+COPY config/ /app/config/
+COPY schemas/ /app/schemas/
+COPY utils/ /app/utils/
+COPY validation/ /app/validation/
+COPY dlq/ /app/dlq/
+COPY spark/ /app/spark/
+COPY monitoring/ /app/monitoring/
+COPY config.yaml /app/config.yaml
+
+# Create runtime dirs and hand ownership to the bitnami user.
+RUN mkdir -p /app/logs /app/checkpoints \
+    && chown -R 1001:1001 /app
+
+USER 1001
+
+# Default to the master entrypoint; docker-compose overrides `command` for
+# workers and the spark-submit streaming job.
+CMD ["/opt/bitnami/scripts/spark/run.sh"]

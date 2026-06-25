@@ -1,0 +1,82 @@
+# =============================================================================
+# Real-Time Events Analytics Pipeline - Git Ignore
+# =============================================================================
+
+# ----- Secrets & credentials -------------------------------------------------
+.env
+.env.*
+!.env.example
+config/gcp-key.json
+config/*-key.json
+*.pem
+*.p12
+
+# ----- Python ----------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+.installed.cfg
+*.egg
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ----- Virtual environments --------------------------------------------------
+.venv/
+venv/
+env/
+ENV/
+.python-version
+
+# ----- Testing / coverage ----------------------------------------------------
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.mypy_cache/
+.dmypy.json
+.hypothesis/
+
+# ----- Spark / streaming runtime ---------------------------------------------
+checkpoints/
+spark-warehouse/
+metastore_db/
+derby.log
+*.crc
+_SUCCESS
+
+# ----- Logs & reports --------------------------------------------------------
+logs/*.log
+logs/dq_reports/*.json
+logs/dq_reports/*.html
+!logs/.gitkeep
+
+# ----- IDE / editor ----------------------------------------------------------
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+*.swp
+*.swo
+*~
+
+# ----- OS --------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ----- Docker ----------------------------------------------------------------
+.docker/
+
+# ----- Power BI temp ---------------------------------------------------------
+powerbi/*.tmp
+~$*.pbix
+
+# ----- Screenshots (keep folder, ignore large temp captures) -----------------
+screenshots/*.tmp
+!screenshots/.gitkeep

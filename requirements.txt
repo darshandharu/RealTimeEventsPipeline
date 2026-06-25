@@ -1,0 +1,74 @@
+# =============================================================================
+# Real-Time Events Analytics Pipeline - Python Dependencies
+# Python 3.12
+#
+# Install:   pip install -r requirements.txt
+#
+# Pinned to compatible majors/minors for reproducible builds. PySpark 3.5.x is
+# the last line that ships pre-built against Hadoop 3 + the Kafka SQL connector
+# used by Structured Streaming, and it is validated against Python 3.12.
+# =============================================================================
+
+# ----------------------------------------------------------------------------
+# Streaming / Messaging
+# ----------------------------------------------------------------------------
+confluent-kafka==2.5.3            # High-throughput Kafka client (producer/consumer)
+kafka-python==2.0.2               # Pure-python client used by admin/topic helpers
+fastavro==1.9.7                   # Fast Avro (de)serialization for Schema Registry
+avro-python3==1.10.2             # Avro schema parsing utilities
+
+# ----------------------------------------------------------------------------
+# Distributed Processing
+# ----------------------------------------------------------------------------
+pyspark==3.5.3                    # Structured Streaming engine
+py4j==0.10.9.7                    # Spark<->JVM bridge (matched to pyspark 3.5.3)
+
+# ----------------------------------------------------------------------------
+# Data Source (Yahoo Finance)
+# ----------------------------------------------------------------------------
+yfinance==0.2.44                  # Yahoo Finance market data
+requests==2.32.3                  # HTTP layer (timeouts / retries)
+urllib3==2.2.3                    # Connection pooling + retry backoff
+
+# ----------------------------------------------------------------------------
+# Google Cloud / BigQuery
+# ----------------------------------------------------------------------------
+google-cloud-bigquery==3.25.0     # BigQuery client (table create, load jobs)
+google-cloud-bigquery-storage==2.27.0  # High-throughput BQ Storage Write API
+google-cloud-storage==2.18.2      # GCS staging for Spark BigQuery connector
+google-auth==2.35.0               # Service-account authentication
+db-dtypes==1.3.0                  # pandas <-> BigQuery dtype mapping
+
+# ----------------------------------------------------------------------------
+# Configuration / Validation
+# ----------------------------------------------------------------------------
+PyYAML==6.0.2                     # config.yaml parsing
+python-dotenv==1.0.1              # .env secret loading
+pydantic==2.9.2                   # Typed config models + runtime validation
+jsonschema==4.23.0                # JSON payload schema validation
+
+# ----------------------------------------------------------------------------
+# Data Handling / Utilities
+# ----------------------------------------------------------------------------
+pandas==2.2.3                     # Tabular ops (DQ reports, BQ load)
+numpy==1.26.4                     # Numerics (mock data generation)
+tenacity==9.0.0                   # Declarative retry/backoff
+python-json-logger==2.0.7         # Structured JSON logging
+rich==13.9.2                      # Pretty console logs / tables
+
+# ----------------------------------------------------------------------------
+# Observability / Metrics (Bonus)
+# ----------------------------------------------------------------------------
+prometheus-client==0.21.0         # Streaming + performance metrics export
+
+# ----------------------------------------------------------------------------
+# Testing / Quality
+# ----------------------------------------------------------------------------
+pytest==8.3.3                     # Unit test runner
+pytest-cov==5.0.0                 # Coverage reporting
+pytest-mock==3.14.0               # Mock fixtures
+freezegun==1.5.1                  # Deterministic timestamp tests
+black==24.10.0                    # PEP8 auto-formatter
+flake8==7.1.1                     # Linting
+mypy==1.13.0                      # Static type checking
+isort==5.13.2                     # Import ordering

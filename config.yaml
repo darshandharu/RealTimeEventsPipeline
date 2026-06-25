@@ -1,0 +1,192 @@
+# =============================================================================
+# Real-Time Events Analytics Pipeline - Central Configuration
+# -----------------------------------------------------------------------------
+# Single source of truth for every runtime component (producer, Spark job,
+# validation, DLQ, BigQuery sink, monitoring).
+#
+# Secrets are NEVER hard-coded here. Any value written as ${ENV_VAR} or
+# ${ENV_VAR:-default} is resolved at load time by config/config_loader.py from
+# the process environment (.env / Docker / CI secrets). Commit this file; keep
+# real secrets in .env (git-ignored).
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Application metadata
+# -----------------------------------------------------------------------------
+app:
+  name: "real-time-events-analytics-pipeline"
+  pipeline_name: "rtep-stock-events"          # stamped onto DLQ records
+  environment: "${APP_ENV:-local}"            # local | dev | staging | prod
+  version: "1.0.0"
+
+# -----------------------------------------------------------------------------
+# Data source - Yahoo Finance (Option 1). Falls back to a mock generator when
+# `use_mock_fallback` is true and the API is unreachable, so demos never break.
+# -----------------------------------------------------------------------------
+source:
+  type: "yahoo_finance"                        # yahoo_finance | mock_iot
+  use_mock_fallback: true
+  symbols:
+    - { symbol: "AAPL",  company: "Apple Inc.",            exchange: "NASDAQ" }
+    - { symbol: "MSFT",  company: "Microsoft Corporation", exchange: "NASDAQ" }
+    - { symbol: "GOOGL", company: "Alphabet Inc.",         exchange: "NASDAQ" }
+    - { symbol: "AMZN",  company: "Amazon.com Inc.",       exchange: "NASDAQ" }
+    - { symbol: "TSLA",  company: "Tesla Inc.",            exchange: "NASDAQ" }
+    - { symbol: "NVDA",  company: "NVIDIA Corporation",    exchange: "NASDAQ" }
+    - { symbol: "META",  company: "Meta Platforms Inc.",   exchange: "NASDAQ" }
+    - { symbol: "JPM",   company: "JPMorgan Chase & Co.",  exchange: "NYSE" }
+    - { symbol: "V",     company: "Visa Inc.",             exchange: "NYSE" }
+    - { symbol: "WMT",   company: "Walmart Inc.",          exchange: "NYSE" }
+  api:
+    timeout_seconds: 10
+    max_retries: 3
+    backoff_base_seconds: 2          # exponential backoff base (2,4,8...)
+    backoff_max_seconds: 30
+
+# -----------------------------------------------------------------------------
+# Kafka - broker, topics, producer & consumer tuning
+# -----------------------------------------------------------------------------
+kafka:
+  bootstrap_servers: "${KAFKA_BOOTSTRAP_SERVERS:-localhost:9092}"
+  schema_registry_url: "${SCHEMA_REGISTRY_URL:-http://localhost:8081}"
+  client_id: "rtep-producer"
+
+  topics:
+    events: "events"
+    dead_letter: "dead-letter-events"
+
+  producer:
+    acks: "all"                      # strongest durability guarantee
+    enable_idempotence: true         # exactly-once producer semantics
+    retries: 5
+    retry_backoff_ms: 500
+    linger_ms: 50                    # small batching window for throughput
+    batch_size: 32768                # 32 KB
+    compression_type: "snappy"
+    max_in_flight_requests: 5
+    delivery_timeout_ms: 120000
+
+  consumer:                          # used by Spark `kafka` source options
+    group_id: "rtep-spark-consumer"
+    auto_offset_reset: "latest"      # earliest | latest
+    max_offsets_per_trigger: 5000    # backpressure: cap records per micro-batch
+    fail_on_data_loss: false
+
+# -----------------------------------------------------------------------------
+# Producer behaviour
+# -----------------------------------------------------------------------------
+producer:
+  event_interval_seconds: 3          # base emit cadence (2-5s window)
+  interval_jitter_seconds: 2         # random +/- jitter on top of base
+  events_per_tick: 1                 # events emitted per symbol per tick
+  inject_bad_records_pct: 5          # % corrupted records to exercise DLQ (demo)
+  graceful_shutdown_timeout_seconds: 15
+
+# -----------------------------------------------------------------------------
+# Spark Structured Streaming
+# -----------------------------------------------------------------------------
+spark:
+  app_name: "rtep-structured-streaming"
+  master: "${SPARK_MASTER:-local[*]}"
+  log_level: "WARN"
+  shuffle_partitions: 8
+
+  streaming:
+    starting_offsets: "latest"
+    trigger_interval: "30 seconds"           # micro-batch trigger
+    watermark_delay: "2 minutes"             # late-arrival tolerance
+    window_duration: "1 minute"              # tumbling window size
+    window_slide: "1 minute"                 # == duration -> tumbling
+    checkpoint_location: "${CHECKPOINT_DIR:-./checkpoints}"
+    max_files_per_trigger: 1
+
+  packages:
+    - "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.3"
+    - "com.google.cloud.spark:spark-bigquery-with-dependencies_2.12:0.41.0"
+
+# -----------------------------------------------------------------------------
+# Validation rules (consumed by validation/validator.py)
+# -----------------------------------------------------------------------------
+validation:
+  required_fields:
+    - event_id
+    - symbol
+    - price
+    - volume
+    - timestamp
+  rules:
+    price_min: 0.0                   # reject negative / zero prices
+    price_max: 1000000.0
+    volume_min: 0
+    change_percent_min: -100.0
+    change_percent_max: 1000.0
+    max_timestamp_skew_seconds: 300  # reject events too far in the future
+    allowed_exchanges: ["NASDAQ", "NYSE", "AMEX", "BSE", "NSE"]
+  enable_duplicate_detection: true   # bonus: drop duplicate event_ids in window
+  duplicate_window: "5 minutes"
+
+# -----------------------------------------------------------------------------
+# Dead Letter Queue
+# -----------------------------------------------------------------------------
+dlq:
+  topic: "dead-letter-events"
+  include_stacktrace: true
+  fields:                            # documented contract of a DLQ record
+    - original_message
+    - error_reason
+    - processing_timestamp
+    - pipeline_name
+
+# -----------------------------------------------------------------------------
+# Google BigQuery sink
+# -----------------------------------------------------------------------------
+bigquery:
+  project_id: "${GCP_PROJECT_ID:-my-gcp-project}"
+  dataset: "${BQ_DATASET:-rtep_analytics}"
+  location: "${BQ_LOCATION:-US}"
+  credentials_path: "${GOOGLE_APPLICATION_CREDENTIALS:-./config/gcp-key.json}"
+  temporary_gcs_bucket: "${BQ_TEMP_BUCKET:-rtep-spark-temp}"  # connector staging
+  write_method: "direct"             # direct (Storage Write API) | indirect
+  tables:
+    raw_events: "events_raw"
+    aggregates: "events_aggregates_1m"
+    dead_letter: "dead_letter_events"
+  partition_field: "event_date"      # DATE partition column
+  partition_type: "DAY"
+  clustering_fields: ["symbol", "exchange"]
+  create_disposition: "CREATE_IF_NEEDED"
+  write_disposition: "WRITE_APPEND"  # append mode (requirement #8)
+
+# -----------------------------------------------------------------------------
+# Logging (consumed by utils/logger.py)
+# -----------------------------------------------------------------------------
+logging:
+  level: "${LOG_LEVEL:-INFO}"
+  log_dir: "./logs"
+  format: "json"                     # json | plain
+  rotation:
+    max_bytes: 10485760              # 10 MB per file
+    backup_count: 5
+  files:
+    producer: "producer.log"
+    consumer: "consumer.log"
+    pipeline: "pipeline.log"
+
+# -----------------------------------------------------------------------------
+# Monitoring / Alerting (bonus features)
+# -----------------------------------------------------------------------------
+monitoring:
+  enable_prometheus: true
+  prometheus_port: 8000
+  metrics_interval_seconds: 30
+  data_quality_report:
+    enabled: true
+    output_dir: "./logs/dq_reports"
+  alerting:
+    enabled: true
+    channel: "log"                   # log | webhook (Slack/Teams)
+    webhook_url: "${ALERT_WEBHOOK_URL:-}"
+    thresholds:
+      dlq_rate_pct: 10               # alert if DLQ % of throughput exceeds this
+      min_throughput_per_min: 5      # alert if producer stalls
+      max_processing_lag_seconds: 120

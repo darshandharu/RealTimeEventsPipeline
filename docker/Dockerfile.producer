@@ -1,0 +1,41 @@
+# =============================================================================
+# Producer image - runs the Kafka event producer.
+# -----------------------------------------------------------------------------
+# Slim Python base; only the producer's runtime deps are installed to keep the
+# image small. Runs as a non-root user.
+# =============================================================================
+FROM python:3.12-slim AS base
+
+# --- OS deps (build tools for confluent-kafka / numpy wheels if needed) -------
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends gcc librdkafka-dev curl \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONPATH=/app
+
+WORKDIR /app
+
+# --- Python deps (layer-cached) ----------------------------------------------
+COPY requirements.txt /app/requirements.txt
+# Producer needs only a subset; install the full file for simplicity + parity.
+RUN pip install --upgrade pip && pip install -r /app/requirements.txt
+
+# --- Application code ---------------------------------------------------------
+COPY config/ /app/config/
+COPY schemas/ /app/schemas/
+COPY utils/ /app/utils/
+COPY validation/ /app/validation/
+COPY dlq/ /app/dlq/
+COPY producer/ /app/producer/
+COPY config.yaml /app/config.yaml
+
+# --- Non-root user ------------------------------------------------------------
+RUN useradd --create-home --uid 1000 appuser \
+    && mkdir -p /app/logs && chown -R appuser:appuser /app
+USER appuser
+
+# --- Default command ----------------------------------------------------------
+CMD ["python", "-m", "producer.run_producer"]

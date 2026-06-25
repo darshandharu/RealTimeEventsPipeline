@@ -1,0 +1,17 @@
+# Normalize line endings: store text as LF in the repo, check out native.
+* text=auto eol=lf
+
+# Force LF for files that must stay LF (shell scripts, Dockerfiles, configs).
+*.sh        text eol=lf
+*.py        text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.sql       text eol=lf
+Makefile    text eol=lf
+Dockerfile* text eol=lf
+
+# Treat known binaries as binary (no EOL conversion / diffing).
+*.png  binary
+*.jpg  binary
+*.pbix binary
+*.xlsx binary
