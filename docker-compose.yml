@@ -258,6 +258,12 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       SCHEMA_REGISTRY_URL: http://schema-registry:8081
       GOOGLE_APPLICATION_CREDENTIALS: /app/config/gcp-key.json
+      # BigQuery target — forwarded from the host .env so config.yaml resolves to
+      # the real project/dataset inside the container (no .env is mounted here).
+      GCP_PROJECT_ID: "${GCP_PROJECT_ID:-my-gcp-project}"
+      BQ_DATASET: "${BQ_DATASET:-rtep_analytics}"
+      BQ_LOCATION: "${BQ_LOCATION:-US}"
+      BQ_TEMP_BUCKET: "${BQ_TEMP_BUCKET:-rtep-spark-temp}"
       # Output sink: bigquery (default) | console | parquet.
       # Run offline with no GCP:  SINK_TYPE=console docker compose up spark-streaming
       SINK_TYPE: "${SINK_TYPE:-bigquery}"
