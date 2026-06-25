@@ -235,60 +235,70 @@ def build_spark_validation_expr(config: Config) -> "Any":
     required = config.validation.required_fields
     allowed = config.validation.rules.allowed_exchanges
 
-    # Build a chain of when() conditions; first match wins (most-fundamental
-    # failure reported first), mirroring the dict validator's priority order.
-    expr = F.lit(None).cast("string")
+    # Build an ordered list of independent (condition -> reason) checks. Each
+    # condition references only the *base* parsed columns — never the accumulated
+    # expression — so combining them stays linear in size.
+    #
+    # IMPORTANT: we deliberately do NOT chain `when(expr.isNull() & cond, ...)
+    # .otherwise(expr)`. That pattern references the whole accumulated `expr`
+    # twice per rule, doubling the expression tree each step (exponential growth)
+    # and blowing past the JVM 64KB method limit during whole-stage codegen.
+    # F.coalesce() over independent `when` columns is O(n) and returns the first
+    # non-null reason, preserving first-match-wins priority order.
+    checks = []
 
     # 1. corrupted JSON: every parsed field is null => parse failed entirely.
-    all_null = F.col("event_id").isNull() & F.col("symbol").isNull() & F.col("price").isNull()
-    expr = F.when(all_null, F.lit("corrupted_json: payload was not parseable")).otherwise(expr)
+    all_null = (
+        F.col("event_id").isNull()
+        & F.col("symbol").isNull()
+        & F.col("price").isNull()
+    )
+    checks.append((all_null, F.lit("corrupted_json: payload was not parseable")))
 
     # 2. missing/null required fields.
     for field in required:
         col = "event_ts" if field == "timestamp" else field
-        expr = F.when(
-            expr.isNull() & F.col(col).isNull(),
-            F.concat(F.lit("missing_or_null: "), F.lit(field)),
-        ).otherwise(expr)
+        checks.append(
+            (F.col(col).isNull(), F.lit(f"missing_or_null: {field}"))
+        )
 
     # 3. negative / out-of-range price.
-    expr = F.when(
-        expr.isNull() & (F.col("price") <= F.lit(rules.price_min)),
-        F.lit("invalid_price: price <= min"),
-    ).otherwise(expr)
-    expr = F.when(
-        expr.isNull() & (F.col("price") > F.lit(rules.price_max)),
-        F.lit("invalid_price: price > max"),
-    ).otherwise(expr)
+    checks.append(
+        (F.col("price") <= F.lit(rules.price_min), F.lit("invalid_price: price <= min"))
+    )
+    checks.append(
+        (F.col("price") > F.lit(rules.price_max), F.lit("invalid_price: price > max"))
+    )
 
     # 4. negative volume.
-    expr = F.when(
-        expr.isNull() & (F.col("volume") < F.lit(rules.volume_min)),
-        F.lit("invalid_volume: volume < min"),
-    ).otherwise(expr)
+    checks.append(
+        (F.col("volume") < F.lit(rules.volume_min), F.lit("invalid_volume: volume < min"))
+    )
 
     # 5. change_percent out of range.
-    expr = F.when(
-        expr.isNull()
-        & (
+    checks.append(
+        (
             (F.col("change_percent") < F.lit(rules.change_percent_min))
-            | (F.col("change_percent") > F.lit(rules.change_percent_max))
-        ),
-        F.lit("invalid_change_percent: out of range"),
-    ).otherwise(expr)
+            | (F.col("change_percent") > F.lit(rules.change_percent_max)),
+            F.lit("invalid_change_percent: out of range"),
+        )
+    )
 
-    # 6. invalid timestamp (string failed to cast to a timestamp).
-    expr = F.when(
-        expr.isNull() & F.col("timestamp").isNotNull() & F.col("event_ts").isNull(),
-        F.lit("invalid_timestamp: not ISO-8601"),
-    ).otherwise(expr)
+    # 6. invalid timestamp (string present but failed to cast to a timestamp).
+    checks.append(
+        (
+            F.col("timestamp").isNotNull() & F.col("event_ts").isNull(),
+            F.lit("invalid_timestamp: not ISO-8601"),
+        )
+    )
 
     # 7. exchange not in allow-list.
-    expr = F.when(
-        expr.isNull()
-        & F.col("exchange").isNotNull()
-        & ~F.col("exchange").isin(list(allowed)),
-        F.lit("invalid_exchange: not allowed"),
-    ).otherwise(expr)
+    checks.append(
+        (
+            F.col("exchange").isNotNull() & ~F.col("exchange").isin(list(allowed)),
+            F.lit("invalid_exchange: not allowed"),
+        )
+    )
 
-    return expr
+    # coalesce(first non-null) == first matching check, preserving priority.
+    return F.coalesce(*[F.when(cond, reason) for cond, reason in checks])
