@@ -26,6 +26,7 @@ app:
 source:
   type: "yahoo_finance"                        # yahoo_finance | mock_iot
   use_mock_fallback: true
+  force_mock: ${SOURCE_FORCE_MOCK:-false}      # skip live API entirely (offline)
   symbols:
     - { symbol: "AAPL",  company: "Apple Inc.",            exchange: "NASDAQ" }
     - { symbol: "MSFT",  company: "Microsoft Corporation", exchange: "NASDAQ" }

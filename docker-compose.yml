@@ -163,6 +163,8 @@ services:
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      # Set SOURCE_FORCE_MOCK=true to skip live Yahoo Finance calls (offline demo).
+      SOURCE_FORCE_MOCK: "${SOURCE_FORCE_MOCK:-false}"
       PYTHONUNBUFFERED: 1
     volumes:
       - ./config:/app/config:ro
@@ -180,12 +182,16 @@ services:
       dockerfile: docker/Dockerfile.spark
     container_name: rtep-spark-master
     hostname: spark-master
-    command: ["/opt/bitnami/scripts/spark/run.sh"]
-    environment:
-      SPARK_MODE: master
-      SPARK_RPC_AUTHENTICATION_ENABLED: "no"
-      SPARK_RPC_ENCRYPTION_ENABLED: "no"
-      SPARK_SSL_ENABLED: "no"
+    # Official-image foreground command to run the standalone Master.
+    command:
+      - "/opt/spark/bin/spark-class"
+      - "org.apache.spark.deploy.master.Master"
+      - "--host"
+      - "spark-master"
+      - "--port"
+      - "7077"
+      - "--webui-port"
+      - "8080"
     ports:
       - "8090:8080"     # Spark master UI
       - "7077:7077"     # Spark master RPC
@@ -206,14 +212,19 @@ services:
     container_name: rtep-spark-worker
     depends_on:
       - spark-master
+    # Official-image foreground command to run a standalone Worker.
+    command:
+      - "/opt/spark/bin/spark-class"
+      - "org.apache.spark.deploy.worker.Worker"
+      - "--webui-port"
+      - "8081"
+      - "--cores"
+      - "2"
+      - "--memory"
+      - "2G"
+      - "spark://spark-master:7077"
     environment:
-      SPARK_MODE: worker
-      SPARK_MASTER_URL: spark://spark-master:7077
-      SPARK_WORKER_MEMORY: 2G
-      SPARK_WORKER_CORES: 2
-      SPARK_RPC_AUTHENTICATION_ENABLED: "no"
-      SPARK_RPC_ENCRYPTION_ENABLED: "no"
-      SPARK_SSL_ENABLED: "no"
+      SPARK_NO_DAEMONIZE: "true"
     volumes:
       - ./config:/app/config:ro
       - ./logs:/app/logs
@@ -230,15 +241,16 @@ services:
       dockerfile: docker/Dockerfile.spark
     container_name: rtep-spark-streaming
     depends_on:
-      spark-master:
-        condition: service_started
       kafka:
         condition: service_healthy
       kafka-init:
         condition: service_completed_successfully
+    # local[*] mode: the streaming job runs self-contained (no separate cluster
+    # needed for a single-node demo). Point --master at spark://spark-master:7077
+    # instead to run on the standalone cluster (master + worker services).
     command: >
-      spark-submit
-      --master spark://spark-master:7077
+      /opt/spark/bin/spark-submit
+      --master local[*]
       --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.3,com.google.cloud.spark:spark-bigquery-with-dependencies_2.12:0.41.0
       --conf spark.sql.streaming.checkpointLocation=/app/checkpoints
       /app/spark/streaming_job.py

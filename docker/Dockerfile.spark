@@ -1,29 +1,35 @@
 # =============================================================================
 # Spark image - serves as master, worker and the streaming-job submitter.
 # -----------------------------------------------------------------------------
-# Built on the Bitnami Spark 3.5 image (Spark 3.5.x + Hadoop 3, Python 3) so it
-# matches the pinned pyspark==3.5.3 and ships the scripts docker-compose calls
-# for master/worker mode. The Kafka + BigQuery connector JARs are pulled at
-# submit time via --packages (see docker-compose `spark-streaming.command`),
+# Built on the official Apache Spark 3.5.3 image (Spark 3.5.x + Hadoop 3 +
+# bundled PySpark), matching the pinned pyspark==3.5.3. The Kafka + BigQuery
+# connector JARs are pulled at submit time via --packages (see docker-compose),
 # and Ivy caches them into the named volume on first run.
 # =============================================================================
-FROM bitnami/spark:3.5.3
+FROM apache/spark:3.5.3
 
-# Bitnami images run as non-root (uid 1001) by default. Switch to root only to
-# install the Python deps, then drop back.
+# The official image runs as user `spark` (uid 185). Switch to root to install
+# the extra Python driver deps + app code, then drop back.
 USER root
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
-    PYTHONPATH=/app
+    PYTHONPATH=/app \
+    SPARK_HOME=/opt/spark
 
 WORKDIR /app
 
 # --- Python deps for the driver (BigQuery client, config, validation, etc.) ---
+# pip is provided via the image's python3; ensure it is available then install.
 COPY requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r /app/requirements.txt
+RUN set -eux; \
+    if ! command -v pip3 >/dev/null 2>&1; then \
+        apt-get update && apt-get install -y --no-install-recommends python3-pip \
+        && rm -rf /var/lib/apt/lists/*; \
+    fi; \
+    pip3 install --no-cache-dir --upgrade pip; \
+    pip3 install --no-cache-dir -r /app/requirements.txt
 
 # --- Application code ---------------------------------------------------------
 COPY config/ /app/config/
@@ -35,12 +41,12 @@ COPY spark/ /app/spark/
 COPY monitoring/ /app/monitoring/
 COPY config.yaml /app/config.yaml
 
-# Create runtime dirs and hand ownership to the bitnami user.
+# Create runtime dirs and hand ownership to the spark user (uid 185).
 RUN mkdir -p /app/logs /app/checkpoints \
-    && chown -R 1001:1001 /app
+    && chown -R 185:185 /app
 
-USER 1001
+USER 185
 
-# Default to the master entrypoint; docker-compose overrides `command` for
-# workers and the spark-submit streaming job.
-CMD ["/opt/bitnami/scripts/spark/run.sh"]
+# Default to a no-op; docker-compose sets the real `command` for master,
+# worker and the spark-submit streaming job.
+CMD ["/bin/bash", "-c", "echo 'Provide a command (master/worker/spark-submit)'; sleep infinity"]

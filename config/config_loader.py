@@ -97,6 +97,7 @@ class SourceConfig(_Frozen):
 
     type: str = "yahoo_finance"
     use_mock_fallback: bool = True
+    force_mock: bool = False
     symbols: List[_SymbolConfig]
     api: _ApiConfig
 

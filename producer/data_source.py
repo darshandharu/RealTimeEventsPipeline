@@ -77,7 +77,11 @@ class MarketDataSource(DataSource):
         }
         self._source_mode = (
             "yahoo_finance"
-            if (config.source.type == "yahoo_finance" and yf is not None)
+            if (
+                config.source.type == "yahoo_finance"
+                and yf is not None
+                and not config.source.force_mock
+            )
             else "mock"
         )
         _log.info(
