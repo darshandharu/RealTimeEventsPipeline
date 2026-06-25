@@ -32,8 +32,14 @@ services:
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
+      # Allow the `ruok` four-letter word for manual debugging; also set the JVM
+      # system property directly since the image doesn't translate this key.
+      ZOOKEEPER_4LW_COMMANDS_WHITELIST: "ruok,srvr,stat"
+      KAFKA_OPTS: "-Dzookeeper.4lw.commands.whitelist=ruok,srvr,stat"
     healthcheck:
-      test: ["CMD-SHELL", "echo ruok | nc localhost 2181 | grep imok"]
+      # Plain TCP port check via bash built-in — image-independent, no reliance
+      # on the 4lw whitelist or netcat flags.
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/2181'"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -84,19 +90,16 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
-    entrypoint: ["/bin/sh", "-c"]
-    command: |
-      "
-      echo 'Creating Kafka topics...';
-      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists \
-        --topic events --partitions 3 --replication-factor 1 \
-        --config retention.ms=604800000;
-      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists \
-        --topic dead-letter-events --partitions 3 --replication-factor 1 \
-        --config retention.ms=1209600000;
-      echo 'Topics created:';
-      kafka-topics --bootstrap-server kafka:29092 --list;
-      "
+    # Single-line, &&-joined commands (no backslash continuations, which are
+    # fragile inside a YAML block scalar).
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - >-
+        echo 'Creating Kafka topics...' &&
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic events --partitions 3 --replication-factor 1 --config retention.ms=604800000 &&
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic dead-letter-events --partitions 3 --replication-factor 1 --config retention.ms=1209600000 &&
+        echo 'Topics created:' &&
+        kafka-topics --bootstrap-server kafka:29092 --list
     networks:
       - rtep-net
 
