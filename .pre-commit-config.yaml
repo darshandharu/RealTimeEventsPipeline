@@ -1,0 +1,46 @@
+# =============================================================================
+# pre-commit hooks — auto-format & lint on every `git commit`.
+# -----------------------------------------------------------------------------
+# These run the SAME tools (and versions) as CI, so an unformatted or linting
+# file can never reach GitHub. black/isort auto-fix; flake8 reports.
+#
+# Enable once per clone:
+#     pip install pre-commit
+#     pre-commit install
+#
+# Run manually against everything:
+#     pre-commit run --all-files
+#
+# Tool versions are pinned to match requirements.txt / the CI lint job.
+# =============================================================================
+repos:
+  # --- formatting (auto-fix) -------------------------------------------------
+  - repo: https://github.com/psf/black
+    rev: 24.10.0
+    hooks:
+      - id: black
+
+  - repo: https://github.com/PyCQA/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+
+  # --- linting (report) ------------------------------------------------------
+  # Reads config from setup.cfg ([flake8]); black-compatible (max-line 88).
+  - repo: https://github.com/PyCQA/flake8
+    rev: 7.1.1
+    hooks:
+      - id: flake8
+
+  # --- general hygiene + safety ----------------------------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-added-large-files       # block accidental big files
+        args: ["--maxkb=2048"]
+      - id: detect-private-key            # block committing secret keys
+      - id: check-merge-conflict
+      - id: mixed-line-ending
+        args: ["--fix=lf"]

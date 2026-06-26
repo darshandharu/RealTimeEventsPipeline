@@ -72,3 +72,4 @@ black==24.10.0                    # PEP8 auto-formatter
 flake8==7.1.1                     # Linting
 mypy==1.13.0                      # Static type checking
 isort==5.13.2                     # Import ordering
+pre-commit==4.0.1                 # Git pre-commit hooks (auto format/lint)

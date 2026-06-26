@@ -36,6 +36,14 @@ lint: ## Lint with flake8 + type-check with mypy
 	$(PYTHON) -m flake8 producer validation dlq spark monitoring config utils
 	$(PYTHON) -m mypy producer validation dlq spark monitoring config utils
 
+.PHONY: hooks
+hooks: ## Install the git pre-commit hooks (run once per clone)
+	$(PYTHON) -m pre_commit install
+
+.PHONY: precommit
+precommit: ## Run all pre-commit hooks against every file
+	$(PYTHON) -m pre_commit run --all-files
+
 .PHONY: test
 test: ## Run the unit test suite with coverage
 	$(PYTHON) -m pytest
