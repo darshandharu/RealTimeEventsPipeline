@@ -31,7 +31,9 @@ def main() -> int:
         from google.cloud import bigquery
         from google.oauth2 import service_account
     except ImportError:
-        print("google-cloud-bigquery not installed. Run: pip install -r requirements.txt")
+        print(
+            "google-cloud-bigquery not installed. Run: pip install -r requirements.txt"
+        )
         return 1
 
     if not creds_path.exists():
@@ -40,7 +42,9 @@ def main() -> int:
         return 1
 
     creds = service_account.Credentials.from_service_account_file(str(creds_path))
-    client = bigquery.Client(project=project, credentials=creds, location=cfg.bigquery.location)
+    client = bigquery.Client(
+        project=project, credentials=creds, location=cfg.bigquery.location
+    )
     ds = f"{project}.{dataset}"
     print(f"Checking dataset: {ds}\n")
 
@@ -55,7 +59,9 @@ def main() -> int:
     any_data = False
     for label, table in tables.items():
         try:
-            n = list(client.query(f"SELECT COUNT(*) AS c FROM `{ds}.{table}`").result())[0].c
+            n = list(
+                client.query(f"SELECT COUNT(*) AS c FROM `{ds}.{table}`").result()
+            )[0].c
             any_data = any_data or n > 0
             print(f"  {label:12s} {table:24s} = {n} row(s)")
         except Exception as exc:  # noqa: BLE001
@@ -76,7 +82,9 @@ def main() -> int:
     """
     try:
         for r in client.query(q).result():
-            print(f"  {r.symbol:6s} ${r.price:<10} vol={r.volume:<10} {r.exchange:6s} hr={r.event_hour}")
+            print(
+                f"  {r.symbol:6s} ${r.price:<10} vol={r.volume:<10} {r.exchange:6s} hr={r.event_hour}"
+            )
     except Exception as exc:  # noqa: BLE001
         print(f"  (could not read sample: {str(exc)[:80]})")
 
@@ -93,7 +101,9 @@ def main() -> int:
     except Exception as exc:  # noqa: BLE001
         print(f"  (could not read aggregates: {str(exc)[:80]})")
 
-    print("\nLooks healthy if: counts increase on re-run, tickers are real, prices > 0.")
+    print(
+        "\nLooks healthy if: counts increase on re-run, tickers are real, prices > 0."
+    )
     return 0
 
 
