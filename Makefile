@@ -85,6 +85,14 @@ ui: ## Start the optional Kafka UI (http://localhost:8080)
 logs: ## Tail logs from all containers
 	docker compose logs -f
 
+.PHONY: check
+check: ## Health-check the running pipeline (containers, Kafka, Spark output)
+	bash scripts/healthcheck.sh
+
+.PHONY: verify-bq
+verify-bq: ## Verify data landed correctly in BigQuery (row counts + samples)
+	$(PYTHON) scripts/verify_bigquery.py
+
 .PHONY: down
 down: ## Stop the stack
 	docker compose down
